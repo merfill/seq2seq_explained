@@ -14,7 +14,7 @@ import tensorflow as tf
 
 
 DATADIR = './data'
-RESULTSDIR = './seq2seq_greedy_results'
+RESULTSDIR = './seq2seq_attention_results'
 
 
 def mkdir(path):
@@ -106,8 +106,12 @@ def model_fn(features, labels, mode, params):
     # --- decoder ---
 
     # decoder RNN cell
-    decoder_cell = tf.contrib.rnn.MultiRNNCell([tf.contrib.rnn.GRUCell(params['dim']) for _ in range(params['layers'])])
-    decoder_initial_state = encoder_state
+    cell = tf.contrib.rnn.MultiRNNCell([tf.contrib.rnn.GRUCell(params['dim']) for _ in range(params['layers'])])
+
+    # add attention layer
+    attention = tf.contrib.seq2seq.BahdanauAttention(num_units=params['dim'], memory=encoder_output, memory_sequence_length=source_length)
+    decoder_cell = tf.contrib.seq2seq.AttentionWrapper(cell, attention, attention_layer_size=params['dim'])
+    decoder_initial_state = decoder_cell.zero_state(batch_size, tf.float32).clone(cell_state=encoder_state)
 
     # projection layer
     projection_layer = tf.layers.Dense(num_targets, use_bias=False)

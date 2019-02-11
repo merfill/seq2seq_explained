@@ -14,7 +14,7 @@ import tensorflow as tf
 
 
 DATADIR = './data'
-RESULTSDIR = './seq2seq_greedy_results'
+RESULTSDIR = './seq2seq_beamsearch_results'
 
 
 def mkdir(path):
@@ -117,19 +117,24 @@ def model_fn(features, labels, mode, params):
 
     if mode == tf.estimator.ModeKeys.PREDICT:
         # prediction decoder
-        prediction_helper = tf.contrib.seq2seq.GreedyEmbeddingHelper(
+        predictor_initial_state = tf.contrib.seq2seq.tile_batch(decoder_initial_state, multiplier=params['beam_width'])
+        prediction_decoder = tf.contrib.seq2seq.BeamSearchDecoder(
+            cell=decoder_cell,
             embedding=target_embedding,
             start_tokens=tf.fill([batch_size], tf.to_int32(vocab_target.lookup(tf.fill([], '<go>')))),
-            end_token=tf.to_int32(vocab_target.lookup(tf.fill([], '<eos>'))))
-        prediction_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell, prediction_helper, decoder_initial_state, output_layer=projection_layer)
+            end_token=tf.to_int32(vocab_target.lookup(tf.fill([], '<eos>'))),
+            initial_state=predictor_initial_state,
+            beam_width=params['beam_width'],
+            output_layer=projection_layer)
         prediction_output, _, _ = tf.contrib.seq2seq.dynamic_decode(prediction_decoder, maximum_iterations=params['max_iters'])
+        predicted_ids = prediction_output.predicted_ids[:,:,0]
 
         # prepare prediction
         reverse_vocab_target = tf.contrib.lookup.index_to_string_table_from_file(params['target_vocab_file'])
-        pred_strings = reverse_vocab_target.lookup(tf.to_int64(prediction_output.sample_id))
+        pred_strings = reverse_vocab_target.lookup(tf.to_int64(predicted_ids))
         predictions = {
-            'ids': prediction_output.sample_id,
-            'text': pred_strings
+            'ids': predicted_ids,
+            'text': pred_strings,
         }
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
     else:
@@ -171,6 +176,7 @@ if __name__ == '__main__':
         'lr': .001,
         'embedding_size': 100,
         'max_iters': 50,
+        'beam_width': 10,
         'dropout': 0.5,
         'layers': 3,
         'num_oov_buckets': 3,
@@ -225,9 +231,8 @@ if __name__ == '__main__':
                 errors += ['{} ? {} --> {}'.format(s, t, p)]
         acc = (1. - (len(errors) / float(alls))) * 100.
         print('acc: ', acc)
-        print('errors: {} from {}'.format(len(errors), alls))
-        #for e in errors:
-        #    print(e)
+        for e in errors:
+            print(e)
 
     for name in ['test', 'dev']:
         write_predictions(name)
