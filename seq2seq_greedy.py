@@ -160,7 +160,9 @@ def model_fn(features, labels, mode, params):
             return tf.estimator.EstimatorSpec(mode, loss=loss, eval_metric_ops=metrics)
         elif mode == tf.estimator.ModeKeys.TRAIN:
             optimizer = tf.train.AdamOptimizer(learning_rate=params.get('lr', .001))
-            train_op = optimizer.minimize(loss, global_step=tf.train.get_or_create_global_step())
+            grads, vs     = zip(*optimizer.compute_gradients(loss))
+            grads, gnorm  = tf.clip_by_global_norm(grads, params.get('clip', .5))
+            train_op = optimizer.apply_gradients(zip(grads, vs), global_step=tf.train.get_or_create_global_step())
             return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
 
 
@@ -169,6 +171,7 @@ if __name__ == '__main__':
     params = {
         'dim': 128,
         'lr': .001,
+        'clip': .5,
         'embedding_size': 100,
         'max_iters': 50,
         'dropout': 0.5,
@@ -225,9 +228,8 @@ if __name__ == '__main__':
                 errors += ['{} ? {} --> {}'.format(s, t, p)]
         acc = (1. - (len(errors) / float(alls))) * 100.
         print('acc: ', acc)
-        print('errors: {} from {}'.format(len(errors), alls))
-        #for e in errors:
-        #    print(e)
+        for ind in random.sample(range(0, len(errors)), min(10, len(errors)):
+            print(errors[ind])
 
     for name in ['test', 'dev']:
         write_predictions(name)
