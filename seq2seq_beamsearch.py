@@ -234,7 +234,7 @@ if __name__ == '__main__':
                 errors += ['{} ? {} --> {}'.format(s, t, p)]
         acc = (1. - (len(errors) / float(alls))) * 100.
         print('acc: ', acc)
-        for ind in random.sample(range(0, len(errors)), min(10, len(errors)):
+        for ind in random.sample(range(0, len(errors)), min(10, len(errors))):
             print(errors[ind])
 
     for name in ['test', 'dev']:
